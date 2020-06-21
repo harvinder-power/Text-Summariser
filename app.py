@@ -13,36 +13,12 @@ import io
 import pdfplumber
 
 st.sidebar.title("© Harvinder Power")
-st.sidebar.header("Summarise")
-tool = st.sidebar.selectbox("Tool", ["Wikipedia Summariser", "Textbox Summariser", "PDF Summariser"])
+st.sidebar.header("Summariser Tool")
+tool = st.sidebar.selectbox("Tool", ["PDF Summariser", "Wikipedia Summariser", "Textbox Summariser"])
 
-
-######### Wikipedia Article Summariser #########
-def wikipedia_summariser():
-    heading = """
-    # Wikipedia Summariser  
-    _Summary generation using NLTK for Python. Generated summaries are based on word frequency to determine important of phrases in the corpus of text. For better results on domain-specific text, a trained model should be used._
-
-    _Whilst this model can work on other websites, it has mixed results due to variability in CSS styling, leading to poor results on some websites._
-
-    _Inspired by this blog article: https://stackabuse.com/text-summarization-with-nltk-in-python/_
-    """
-    heading
-    user_input = st.text_input("Wikipedia Link:", value="https://en.wikipedia.org/wiki/Machine_learning")
-    lines = st.number_input("How many lines for the summary?", value=15)
-
-    scraped_data = urllib.request.urlopen(user_input)
-    article = scraped_data.read()
-
-    parsed_article = bs.BeautifulSoup(article,'lxml')
-
-    paragraphs = parsed_article.find_all('p')
-
-    article_text = ""
-
-    for p in paragraphs:
-        article_text += p.text
-
+## Universal functions##
+## Generate Summary ##
+def generateSummary(article_text, lines):
     article_text = re.sub(r'\[[0-9]*\]', ' ', article_text)
     article_text = re.sub(r'\s+', ' ', article_text)
     formatted_article_text = re.sub('[^a-zA-Z]', ' ', article_text )
@@ -76,47 +52,77 @@ def wikipedia_summariser():
     summary_sentences = heapq.nlargest(lines, sentence_scores, key=sentence_scores.get)
 
     summary = ' '.join(summary_sentences)
-
-    summary
-
+    return summary
 
 
 ######### Wikipedia Article Summariser #########
-
-
-
-def pdf_summariser():
+def wikipedia_summariser():
     heading = """
-    # PDF Summariser  (Coming Soon)
-    _Summary generation using PDFPlumber and NLTK for Python. Coming soon._
+    # Wikipedia Summariser  
+    Summary generation using NLTK for Python. Generated summaries are based on word frequency to determine important of phrases in the corpus of text. For better results on domain-specific text, a trained model should be used.
+
+    Whilst this model can work on other websites, it has mixed results due to variability in CSS styling, leading to poor results on some websites.
+
+    _Inspired by this blog article: https://stackabuse.com/text-summarization-with-nltk-in-python/_
     """
     heading
+    user_input = st.text_input("Wikipedia Link:", value="https://en.wikipedia.org/wiki/Machine_learning")
+    lines = st.number_input("How many lines for the summary?", value=15)
 
+    scraped_data = urllib.request.urlopen(user_input)
+    article = scraped_data.read()
 
+    parsed_article = bs.BeautifulSoup(article,'lxml')
 
+    paragraphs = parsed_article.find_all('p')
 
+    article_text = ""
 
+    for p in paragraphs:
+        article_text += p.text
 
+    summary = generateSummary(article_text, lines)
+    st.write(summary)
 
+######### PDF Summariser #########
+## Helper function to extract words from the PDF ##
+def extract_data(feed):
+    data = ""
+    with pdfplumber.load(feed) as pdf:
+        pages = pdf.pages
+        for p in pages:
+            data = data + p.extract_text()
+    return data # build more code to return a dataframe 
 
+## Function to input PDF and run through summary generator ##
+def pdf_summariser():
+    heading = """
+    # PDF Summariser
+    Summary generation using PDFPlumber and NLTK for Python. Works well on most PDF types, but has difficulty with academic papers due to highly variable layout of text, tables, and images. Optimisations for this coming soon.
+    
+    _From testing, works best on business based documentation and study notes._
+    """
+    heading
+    uploaded_file = st.file_uploader('Choose your .pdf file', type="pdf")
+    lines = st.number_input("How many lines for the summary?", value=15)
 
-
-
-
-
+    if uploaded_file is not None:
+        df = extract_data(uploaded_file)
+        # st.write('df:', df)
+        summary = generateSummary(df, lines)
+        st.header("Summary")
+        st.write(summary)
+        
 
 
 
 ######### Textbox  Summariser #########
-
-
-
 def textbox_summariser():
     heading = """
     # Textbox Summariser  
-    _Summary generation for free text in Python using NLTK._
+    Summary generation for free text in Python using NLTK.
 
-    _Text needs be long to ensure the summariser is able to take effect._
+    Text needs be long to ensure the summariser is able to take effect.
 
     Example text from this article: https://www.bbc.co.uk/news/science-environment-53119686
     """
@@ -154,122 +160,11 @@ def textbox_summariser():
     GEBCO stands for General Bathymetric Chart of the Oceans. It is the only intergovernmental organisation with a mandate to map the entire ocean floor. The latest status of its Seabed 2030 project was announced to coincide with World Hydrography Day.
     '''
     user_input = st.text_area("Text:", value=dummy_text)
+    lines = st.number_input("How many lines for the summary?", value=5)
     if st.button("Summarise"):
-        output = run_summarization(user_input)
+        output = generateSummary(user_input, lines)
+        st.write(output)
     
-
-
-def _create_frequency_table(text_string) -> dict:
-    stopWords = set(stopwords.words("english"))
-    words = word_tokenize(text_string)
-    ps = PorterStemmer()
-
-    freqTable = dict()
-    for word in words:
-        word = ps.stem(word)
-        if word in stopWords:
-            continue
-        if word in freqTable:
-            freqTable[word] += 1
-        else:
-            freqTable[word] = 1
-
-    return freqTable
-
-
-def _score_sentences(sentences, freqTable) -> dict:
-
-
-    sentenceValue = dict()
-
-    for sentence in sentences:
-        word_count_in_sentence = (len(word_tokenize(sentence)))
-        word_count_in_sentence_except_stop_words = 0
-        for wordValue in freqTable:
-            if wordValue in sentence.lower():
-                word_count_in_sentence_except_stop_words += 1
-                if sentence[:10] in sentenceValue:
-                    sentenceValue[sentence[:10]] += freqTable[wordValue]
-                else:
-                    sentenceValue[sentence[:10]] = freqTable[wordValue]
-
-        if sentence[:10] in sentenceValue:
-            sentenceValue[sentence[:10]] = sentenceValue[sentence[:10]] / word_count_in_sentence_except_stop_words
-
-
-    return sentenceValue
-
-
-def _find_average_score(sentenceValue) -> int:
-
-    sumValues = 0
-    for entry in sentenceValue:
-        sumValues += sentenceValue[entry]
-
-    # Average value of a sentence from original text
-    average = (sumValues / len(sentenceValue))
-
-    return average
-
-
-def _generate_summary(sentences, sentenceValue, threshold):
-    sentence_count = 0
-    summary = ''
-
-    for sentence in sentences:
-        if sentence[:10] in sentenceValue and sentenceValue[sentence[:10]] >= (threshold):
-            summary += " " + sentence
-            sentence_count += 1
-
-    return summary
-
-
-def run_summarization(text):
-    # 1 Create the word frequency table
-    freq_table = _create_frequency_table(text)
-
-
-    # 2 Tokenize the sentences
-    sentences = sent_tokenize(text)
-
-    # 3 Important Algorithm: score the sentences
-    sentence_scores = _score_sentences(sentences, freq_table)
-
-    # 4 Find the threshold
-    threshold = _find_average_score(sentence_scores)
-
-    # 5 Important Algorithm: Generate the summary
-    summary = _generate_summary(sentences, sentence_scores, 1.3 * threshold)
-
-    summary
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ## I miss JS case-switch syntax here :'(
 if tool == "Wikipedia Summariser":
     wikipedia_summariser()
