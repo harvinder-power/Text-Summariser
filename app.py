@@ -11,13 +11,25 @@ from nltk.stem import PorterStemmer
 from nltk.tokenize import word_tokenize, sent_tokenize
 import io
 import pdfplumber
+import torch
+import json 
+from transformers import T5Tokenizer, T5ForConditionalGeneration, T5Config, pipeline
 
 st.sidebar.title("© Harvinder Power")
 st.sidebar.header("Summariser Tool")
 tool = st.sidebar.selectbox("Tool", ["PDF Summariser", "Wikipedia Summariser", "Textbox Summariser"])
+st.sidebar.subheader("Abstractive Summarisation")
+st.sidebar.markdown("Abstractive Summarisation implements the BART model which uses Transformers to analyse the whole text and generate a uniquely written summary.")
+st.sidebar.markdown("_Note: Abstractive Summarisation is computationally intensive, and can take up to a minute to run the model. Text length is limited to ~800 words due to model constraints._")
+abstractive = st.sidebar.checkbox('Use Abstractive Summarisation?', value=True)
 
-## Universal functions##
-## Generate Summary ##
+##Variable to set maximum size of input to transformer. BART is currently limited to 1024 tokens during summarisation. 
+transformerMaxSize = 1024
+
+
+## ---------- Universal functions ----------##
+
+## ---------- Generate Extractive Summary ----------##
 def generateSummary(article_text, lines):
     article_text = re.sub(r'\[[0-9]*\]', ' ', article_text)
     article_text = re.sub(r'\s+', ' ', article_text)
@@ -55,36 +67,57 @@ def generateSummary(article_text, lines):
     return summary
 
 
-######### Wikipedia Article Summariser #########
+## ---------- Generate Abstractive Summary ---------- ##
+def abstractive_summariser(text):
+    summarizer = pipeline(task="summarization")
+    summary = summarizer(text)
+    output = summary[0]['summary_text']
+    return output
+
+
+## ---------- Wikipedia Article Summariser ---------- ##
 def wikipedia_summariser():
     heading = """
     # Wikipedia Summariser  
-    Summary generation using NLTK for Python. Generated summaries are based on word frequency to determine important of phrases in the corpus of text. For better results on domain-specific text, a trained model should be used.
+    Summary generation from Wikipedia articles. In Extractive Sumarisation mode, generated summaries are based on word frequency to determine important of phrases in the corpus of text.
 
-    Whilst this model can work on other websites, it has mixed results due to variability in CSS styling, leading to poor results on some websites.
+    Whilst this model can work on other websites, it has mixed results due to variability in CSS styling, leading to variable performance.
 
     _Inspired by this blog article: https://stackabuse.com/text-summarization-with-nltk-in-python/_
     """
     heading
     user_input = st.text_input("Wikipedia Link:", value="https://en.wikipedia.org/wiki/Machine_learning")
-    lines = st.number_input("How many lines for the summary?", value=15)
+    
+    if abstractive == False:
+        lines = st.number_input("How many lines for the summary?", value=15)
 
-    scraped_data = urllib.request.urlopen(user_input)
-    article = scraped_data.read()
+    if st.button("Summarise"):
+        scraped_data = urllib.request.urlopen(user_input)
+        article = scraped_data.read()
 
-    parsed_article = bs.BeautifulSoup(article,'lxml')
+        parsed_article = bs.BeautifulSoup(article,'lxml')
 
-    paragraphs = parsed_article.find_all('p')
+        paragraphs = parsed_article.find_all('p')
 
-    article_text = ""
+        article_text = ""
+        for p in paragraphs:
+            article_text += p.text
 
-    for p in paragraphs:
-        article_text += p.text
+        if abstractive == True:
+            print("using abstractive")
+            output = abstractive_summariser(article_text[:transformerMaxSize])
+            st.header("Summary")
+            st.write(output)
+        if abstractive == False:
+            print("not using abstractive")
+            output = generateSummary(article_text, lines)
+            st.header("Summary")
+            st.write(output)
 
-    summary = generateSummary(article_text, lines)
-    st.write(summary)
 
-######### PDF Summariser #########
+
+
+## ---------- PDF Summariser ---------- ##
 ## Helper function to extract words from the PDF ##
 def extract_data(feed):
     data = ""
@@ -98,29 +131,35 @@ def extract_data(feed):
 def pdf_summariser():
     heading = """
     # PDF Summariser
-    Summary generation using PDFPlumber and NLTK for Python. Works well on most PDF types, but has difficulty with academic papers due to highly variable layout of text, tables, and images. Optimisations for this coming soon.
+    Summary generation using PDFPlumber for Python. Works well on most PDF types, but has difficulty with academic papers (better performance in abstractive summarisation mode) due to highly variable layout of text, tables, and images.
     
     _From testing, works best on business based documentation and study notes._
     """
     heading
     uploaded_file = st.file_uploader('Choose your .pdf file', type="pdf")
-    lines = st.number_input("How many lines for the summary?", value=15)
+    if abstractive == False:
+        lines = st.number_input("How many lines for the summary?", value=15)
 
     if uploaded_file is not None:
         df = extract_data(uploaded_file)
-        # st.write('df:', df)
-        summary = generateSummary(df, lines)
+        if abstractive == True:
+            print("using abstractive")
+            output = abstractive_summariser(df[:transformerMaxSize])
+        if abstractive == False:
+            print("not using abstractive")
+            output = generateSummary(df, lines)
+        # summary = generateSummary(df, lines)
         st.header("Summary")
-        st.write(summary)
+        st.write(output)
         
 
 
 
-######### Textbox  Summariser #########
+## ---------- Textbox  Summariser ---------- ##
 def textbox_summariser():
     heading = """
     # Textbox Summariser  
-    Summary generation for free text in Python using NLTK.
+    Summary generation for free text in Python.
 
     Text needs be long to ensure the summariser is able to take effect.
 
@@ -153,18 +192,52 @@ def textbox_summariser():
     "A beautiful example of this is the recent bathymetric map of the Drake Passage area (between South America and Antarctica). A lot of that was acquired by different research projects as they fanned out and moved back and forth to the places they were going."
 
     New technology will be absolutely central to the GEBCO quest.
-    Ocean Infinity, a prominent UK-US company that conducts seafloor surveys, is currently building a fleet of robotic surface vessels through a subsidiary it calls Armada. This start-up's MD, Dan Hook, says low-cost, uncrewed vehicles may be the only way to close some of the gaps in the more out-of-the-way locations in the 2030 grid.
-    He told BBC News: "When you look at the the mapping of the seabed in areas closer to shore, you see the business case very quickly. Whether it's for wind farms or cable-laying - there are lots of people that want to know what's down there. But when it's those very remote areas of the planet, the case then is really only a scientific one."
-    Jamie McMichael-Phillips is confident his project's target can be met if everyone pulls together.
-    "I am confident, but to do it we will need partnerships. We need governments, we need industry, we need academics, we need philanthropists, and we need citizen scientists. We need all these individuals to come together if we're to deliver an ocean map that is absolutely fundamental and essential to humankind."
-    GEBCO stands for General Bathymetric Chart of the Oceans. It is the only intergovernmental organisation with a mandate to map the entire ocean floor. The latest status of its Seabed 2030 project was announced to coincide with World Hydrography Day.
+    
     '''
     user_input = st.text_area("Text:", value=dummy_text)
-    lines = st.number_input("How many lines for the summary?", value=5)
-    if st.button("Summarise"):
-        output = generateSummary(user_input, lines)
-        st.write(output)
+    if abstractive == False:
+        lines = st.number_input("How many lines for the summary?", value=5)
     
+    if st.button("Summarise"):
+        if abstractive == True:
+            print("using abstractive")
+            output = abstractive_summariser(user_input[:transformerMaxSize])
+            st.header("Summary")
+            st.write(output)
+        if abstractive == False:
+            print("not using abstractive")
+            output = generateSummary(user_input, lines)
+            st.header("Summary")
+            st.write(output)
+    
+    ## -------------------- OLD ---------------------- ##
+    # model = T5ForConditionalGeneration.from_pretrained('t5-small')
+    # tokenizer = T5Tokenizer.from_pretrained('t5-small')
+    # device = torch.device('cpu')
+
+    # # text ="""
+    # # Semi-supervised learning falls between unsupervised learning (without any labeled training data) and supervised learning (with completely labeled training data). A representative book of the machine learning research during the 1960s was the Nilsson's book on Learning Machines, dealing mostly with machine learning for pattern classification. Rule-based machine learning approaches include learning classifier systems, association rule learning, and artificial immune systems. Machine learning algorithms build a mathematical model based on sample data, known as "training data", in order to make predictions or decisions without being explicitly programmed to do so. Machine learning also has intimate ties to optimization: many learning problems are formulated as minimization of some loss function on a training set of examples. Generalization in this context is the ability of a learning machine to perform accurately on new, unseen examples/tasks after having experienced a learning data set. Rule-based machine learning is a general term for any machine learning method that identifies, learns, or evolves "rules" to store, manipulate or apply knowledge. The computational analysis of machine learning algorithms and their performance is a branch of theoretical computer science known as computational learning theory. Unsupervised learning algorithms take a set of data that contains only inputs, and find structure in the data, like grouping or clustering of data points. Performing machine learning involves creating a model, which is trained on some training data and then can process additional data to make predictions. Usually, when training a machine learning model, one needs to collect a large, representative sample of data from a training set. Leo Breiman distinguished two statistical modeling paradigms: data model and algorithmic model, wherein "algorithmic model" means more or less the machine learning algorithms like Random forest. Feature learning is motivated by the fact that machine learning tasks such as classification often require input that is mathematically and computationally convenient to process. Some statisticians have adopted methods from machine learning, leading to a combined field that they call statistical learning. Early classifications for machine learning approaches sometimes divided them into three broad categories, depending on the nature of the "signal" or "feedback" available to the learning system. Sparse dictionary learning is a feature learning method where a training example is represented as a linear combination of basis functions, and is assumed to be a sparse matrix. Association rule learning is a rule-based machine learning method for discovering relationships between variables in large databases. Unsupervised learning can be a goal in itself (discovering hidden patterns in data) or a means towards an end (feature learning). As of 2020, deep learning has become the dominant approach for much ongoing work in the field of machine learning.
+    # # """
+
+    # preprocess_text = text.strip().replace("\n","")
+    # t5_prepared_Text = "summarize: "+preprocess_text
+    # print ("original text preprocessed: \n", preprocess_text)
+
+    # tokenized_text = tokenizer.encode(t5_prepared_Text, return_tensors="pt").to(device)
+
+
+    # # summmarize 
+    # summary_ids = model.generate(tokenized_text,
+    #                                     num_beams=4,
+    #                                     no_repeat_ngram_size=2,
+    #                                     min_length=30,
+    #                                     max_length=250,
+    #                                     early_stopping=True)
+
+    # output = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+    # st.write(output)
+
+
 ## I miss JS case-switch syntax here :'(
 if tool == "Wikipedia Summariser":
     wikipedia_summariser()
@@ -174,3 +247,6 @@ if tool == "PDF Summariser":
 
 if tool == "Textbox Summariser":
     textbox_summariser()
+
+# if tool == "Abstractive Summarisation":
+#     abstractive_summariser()
