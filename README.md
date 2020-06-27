@@ -16,6 +16,13 @@ Basic textbox to allow for copy and paste entry of text for summarisation.
 
 Whilst Abstractive is more effective at generating summaries, due to the large nature of the model, it takes significantly longer to run than Extractive models.
 
-In the demo, you can test out both extractive and abstractive models to compare the difference.
+## Running Abstractive Summarisation
+Due to size constraints, abstractive summarisation is too large for Heroku deployment (limited to 500MB on Heroku, total size is ~1.2GB). As such, to run the abstractive model, download the repo and run locally.
+
+### Installation Instructions
+1. Install requirements - `pip install -r requirements.txt`
+2. Run streamlit - `streamlit run app.py`
+
+In the demo, you can test out extractive summarisation.
 
 Live demo here: https://summary-generator.herokuapp.com/
