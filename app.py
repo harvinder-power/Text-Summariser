@@ -11,7 +11,7 @@ from nltk.stem import PorterStemmer
 from nltk.tokenize import word_tokenize, sent_tokenize
 import io
 import pdfplumber
-# import torch
+import torch
 import json 
 from transformers import T5Tokenizer, T5ForConditionalGeneration, T5Config, pipeline
 
@@ -69,7 +69,7 @@ def generateSummary(article_text, lines):
 
 ## ---------- Generate Abstractive Summary ---------- ##
 def abstractive_summariser(text):
-    summarizer = pipeline(task="summarization", model="t5-small", tokenizer="t5-small", framework="tf")
+    summarizer = pipeline(task="summarization")
     summary = summarizer(text)
     output = summary[0]['summary_text']
     return output
