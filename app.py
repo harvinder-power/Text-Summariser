@@ -69,7 +69,7 @@ def generateSummary(article_text, lines):
 
 ## ---------- Generate Abstractive Summary ---------- ##
 def abstractive_summariser(text):
-    summarizer = pipeline(task="summarization")
+    summarizer = pipeline(task="summarization", model="t5-small")
     summary = summarizer(text)
     output = summary[0]['summary_text']
     return output
