@@ -3,5 +3,5 @@ streamlit==0.62.0
 beautifulsoup4==4.9.1
 pdfplumber==0.5.21
 lxml==4.5.1
-torch==1.2.0+cpu
+http://download.pytorch.org/whl/cpu/torch-0.4.1-cp36-cp36m-linux_x86_64.whl
 transformers==2.11.0
