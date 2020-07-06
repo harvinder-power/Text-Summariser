@@ -3,5 +3,5 @@ streamlit==0.62.0
 beautifulsoup4==4.9.1
 pdfplumber==0.5.21
 lxml==4.5.1
-torch==1.5.1
+torch==1.2.0+cpu
 transformers==2.11.0
